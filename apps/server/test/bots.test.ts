@@ -14,16 +14,18 @@ import {
 } from "@harmonies/game";
 
 // ---------- 每款游戏不一样的地方 ----------
-/** 测试里真人怎么走：从合法动作里挑一个（要保证对局能走完）。多米诺王国：第一个合法动作（放不下就弃，对局照样会结束）。 */
+/** 测试里真人怎么走：手里有标记就放，放完就结束回合，否则拿第一格（不领卡、不放方块也能把对局走完）。 */
 function humanMove(_game: GameState, actions: GameCommand[]): GameCommand {
-  return actions[0]!;
+  return actions.find((a) => a.type === "placeToken") ?? actions.find((a) => a.type === "endTurn") ?? actions.find((a) => a.type === "pickSpirit") ?? actions[0]!;
 }
-/** 这位玩家自己做了点什么（不是超时、不是轮到他）。 */
+/** 这位玩家自己做了点什么（人机代打的一步；超时的那一包事件不算）。 */
 function actedBy(room: LobbyRoomSnapshot, playerId: string): boolean {
-  return room.game?.events.some((event) => {
+  const events = room.game?.events ?? [];
+  if (events.some((event) => event.type === "TurnTimedOut")) return false;
+  return events.some((event) => {
     const type: string = event.type;
-    return "player" in event && event.player === playerId && type !== "TurnTimedOut" && type !== "TurnStarted";
-  }) === true;
+    return "player" in event && event.player === playerId && type !== "TurnStarted";
+  });
 }
 /** 最小的房间人数选项、开局至少几人。 */
 const MIN_CAPACITY: Capacity = 2;

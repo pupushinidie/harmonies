@@ -17,15 +17,16 @@ import {
 // ---------- 每款游戏不一样的地方 ----------
 /** 最小的房间人数（对局要坐满才开始测）。 */
 const CAPACITY: Capacity = 2;
-/** 这款游戏有没有藏起来的信息（多米诺王国只有别人提前放好的位置，观战一律看不到，不做「观战看全部」开关）。 */
-const HIDDEN_INFO = false;
-/** 开局后先走几步（每步选轮到的人的第一个合法动作），让场上有藏起来的牌。 */
-const STEPS = 4;
-/** 只在服务端的字段（牌堆顺序、种子等），观战的人永远拿不到。 */
-const SERVER_ONLY = ["seed", "rngState", "deck", "setAside", "log"];
-/** 这份状态里看得到几样藏起来的东西（手牌之类）。 */
-function secretsSeen(_game: GameState): number {
-  return 0;
+/** 这款游戏有没有藏起来的信息：自然之灵变体里每人暗发的 2 张和选好的那张（开房时打开变体）。 */
+const HIDDEN_INFO = true;
+const CREATE_OPTIONS = { spirits: true };
+/** 开局后先走几步（每步选轮到的人的第一个合法动作）：有一个人先选好自然之灵。 */
+const STEPS = 1;
+/** 只在服务端的字段（布袋、牌堆顺序、种子等），观战的人永远拿不到。 */
+const SERVER_ONLY = ["seed", "rngState", "deck", "pouch", "log"];
+/** 这份状态里看得到几样藏起来的东西：发到的自然之灵卡、选好的那张（别人只看到 "?"）。 */
+function secretsSeen(game: GameState): number {
+  return game.players.reduce((n, p) => n + (p.spiritChoices?.length ?? 0) + (p.spiritPick && p.spiritPick !== "?" ? 1 : 0), 0);
 }
 // ----------------------------------------
 
@@ -55,7 +56,7 @@ function nick(prefix: string): string {
 }
 
 function create(client: TestSocket, name: string): Promise<LobbyRoomSnapshot> {
-  return new Promise((resolve, reject) => client.emit("room:create", { name, capacity: CAPACITY } as never, (response: AckResponse<LobbyRoomSnapshot>) => {
+  return new Promise((resolve, reject) => client.emit("room:create", { name, capacity: CAPACITY, options: CREATE_OPTIONS } as never, (response: AckResponse<LobbyRoomSnapshot>) => {
     if (response.ok) resolve(response.data);
     else reject(new Error(response.error));
   }));

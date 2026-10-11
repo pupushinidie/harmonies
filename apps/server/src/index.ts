@@ -59,6 +59,8 @@ interface RoomState {
   turn?: { deadline: number; timer: ReturnType<typeof setTimeout>; key: string };
   /** 轮到人机（人机座位、托管、离线的人）时，它下一步的计时器；key 同 turn。 */
   botTimer?: { timer: ReturnType<typeof setTimeout>; key: string };
+  /** 人机已经接手的回合（turnKey:座位）：同一回合里接着走不用再等离线宽限。 */
+  botActing?: string;
   /** 每位真人连续超时的次数（座位 id → 次数）；自己动一下就清零，到 AUTO_AFTER_TIMEOUTS 次转托管。 */
   timeouts: Map<string, number>;
 }
@@ -157,8 +159,9 @@ function normalizeCode(value: unknown): string | null {
 /** 只认布尔值，其余沿用原来的。强力对决只在 2 人局生效（开局时按人数判断）。 */
 function normalizeOptions(value: unknown, base: GameOptions): GameOptions {
   const input = (typeof value === "object" && value !== null ? value : {}) as Partial<Record<keyof GameOptions, unknown>>;
-  const pick = (name: keyof GameOptions) => (typeof input[name] === "boolean" ? (input[name] as boolean) : base[name]);
-  return { middleKingdom: pick("middleKingdom"), harmony: pick("harmony"), mighty: pick("mighty") };
+  const side = input.side === "A" || input.side === "B" ? input.side : base.side;
+  const spirits = typeof input.spirits === "boolean" ? input.spirits : base.spirits;
+  return { side, spirits };
 }
 
 function isCapacity(value: unknown): value is Capacity {
@@ -189,9 +192,14 @@ function snapshot(room: RoomState, viewerId: string): LobbyRoomSnapshot {
   };
 }
 
-/** 观战的人看到的对局：牌堆顺序、移出的骨牌、种子去掉，别人提前放好的位置也看不到（和对手看到的一样）。 */
+/**
+ * 观战的人看到的对局：布袋、牌堆顺序、种子永远去掉；
+ * 房主打开「观战看全部」时，能看到每个人发到的自然之灵和选好的那张，否则和对手看到的一样。
+ */
 function spectatorGame(room: RoomState): GameState {
-  return redactGameForViewer(room.game!, "");
+  const view = redactGameForViewer(room.game!, "");
+  if (!room.access.spectatorsSeeAll) return view;
+  return { ...view, players: room.game!.players.map((player) => structuredClone(player)) };
 }
 
 function isSpectator(room: RoomState, socketId: string): boolean {
@@ -431,22 +439,36 @@ function setTurnDeadline(room: RoomState, deadline: number, key: string): void {
 }
 
 /**
- * 这一步的标识：变了就重新计时（真人）或重新安排人机。只看 game.turn（换了行动的国王或步骤才变），
- * 别人提前放骨牌不会重置正在行动的人的倒计时。
+ * 这一步的标识：变了就重新计时（真人）或重新安排人机。只看阶段和 game.turn（换人才变），
+ * 同一回合里拿标记、放标记、领卡、放方块、撤销都不重置倒计时。
  */
 function turnKey(game: GameState): string {
-  return `${game.turn}`;
+  return `${game.phase}:${game.turn}`;
 }
 
-/** 这一步的时限：选牌 45 秒，放置 90 秒（规则书 9.4）。 */
+/** 这一步的时限：每回合 90 秒、自然之灵选卡 60 秒（规则书 9.4）。 */
 function stepMs(game: GameState): number {
-  return TURN_MS_OVERRIDE ?? (game.step === "pick" ? game.config.pickTimeoutSec : game.config.placeTimeoutSec) * 1000;
+  return TURN_MS_OVERRIDE ?? (game.phase === "spirit" ? game.config.spiritTimeoutSec : game.config.turnTimeoutSec) * 1000;
+}
+
+/** 现在要由人机替谁行动：自然之灵阶段是第一个还没选的人机座位，正常回合是当前玩家（如果他是人机座位）。 */
+function robotActor(room: RoomState, game: GameState): string | null {
+  if (game.phase === "spirit") {
+    return game.players.find((player) => !player.spiritPick && robotSeat(room, player.id))?.id ?? null;
+  }
+  const playerId = game.players[game.currentPlayer]!.id;
+  return robotSeat(room, playerId) ? playerId : null;
+}
+
+/** 自然之灵阶段还有没有真人（在线、没托管）没选。 */
+function humansPending(room: RoomState, game: GameState): boolean {
+  return game.players.some((player) => !player.spiritPick && !robotSeat(room, player.id));
 }
 
 /**
  * 每次对局变化、有人掉线 / 回来、托管开关后重新安排：
- * - 真人：每一步（game.turn）开始时限时（选牌 45 秒、放置 90 秒）；同一步里不重新计时。
- * - 人机（人机座位、托管、离线的人）：停顿一下（见 botDelay）再行动，没有倒计时。
+ * - 真人：每回合（game.turn）开始时限时 90 秒；同一回合里不重新计时。自然之灵阶段所有真人共用一个 60 秒。
+ * - 人机（人机座位、托管、离线的人）：一步一步来，每步停顿一下（见 botDelay），没有倒计时。
  */
 function updateTurnTimer(room: RoomState): void {
   const game = room.game;
@@ -455,43 +477,54 @@ function updateTurnTimer(room: RoomState): void {
     return;
   }
   const key = turnKey(game);
-  const playerId = game.players[game.currentPlayer]!.id;
-  if (robotSeat(room, playerId)) {
-    clearTurnTimer(room);
-    if (room.botTimer?.key === key) return;
+  const actor = robotActor(room, game);
+  const needDeadline = game.phase === "spirit" ? humansPending(room, game) : actor === null;
+  if (actor) {
+    const botKey = `${key}:${actor}:${game.version}`;
+    if (room.botTimer?.key !== botKey) {
+      clearBotTimer(room);
+      const timer = setTimeout(() => runBot(room, botKey, actor), botDelay(room, game, actor) * BOT_DELAY_SCALE);
+      timer.unref();
+      room.botTimer = { timer, key: botKey };
+    }
+  } else {
     clearBotTimer(room);
-    const timer = setTimeout(() => runBot(room, key), botDelay(room, game, playerId) * BOT_DELAY_SCALE);
-    timer.unref();
-    room.botTimer = { timer, key };
+  }
+  if (!needDeadline) {
+    clearTurnTimer(room);
     return;
   }
-  clearBotTimer(room);
   if (room.turn?.key === key) return;
   setTurnDeadline(room, Date.now() + stepMs(game), key);
 }
 
-/** 人机每一步前停多久（毫秒，再乘 BOT_DELAY_SCALE）：让大家看清它把骨牌放在哪、选了哪张。 */
+/** 人机每一步前停多久（毫秒，再乘 BOT_DELAY_SCALE）：让大家看清它拿了哪格、放在哪里。 */
 function botDelay(room: RoomState, game: GameState, playerId: string): number {
-  const jitter = 400 * Math.random();
-  // 刚翻出新的一排：多停一会儿让大家看清
-  const newRound = game.events.some((event) => event.type === "RoundStarted");
+  const jitter = 300 * Math.random();
   const member = room.members.find((candidate) => candidate.playerId === playerId);
   const offline = member !== undefined && !member.bot && !member.connected;
-  return Math.max((newRound ? 2400 : game.step === "place" ? 1500 : 1100) + jitter, offline ? OFFLINE_GRACE_MS : 0);
+  // 回合刚开始（还没拿标记）多停一会儿，让大家看清上一位放了什么
+  const fresh = game.phase === "play" && game.turnState.took === null && game.turnState.undoCount === 0;
+  const base = game.phase === "spirit" ? 1200 : fresh ? 1600 : 800;
+  // 离线的人：人机第一次接手这回合前先等一会儿（刷新页面、短暂断线的人来得及回来）
+  const takenOver = room.botActing === `${turnKey(game)}:${playerId}`;
+  return Math.max(base + jitter, offline && !takenOver ? OFFLINE_GRACE_MS : 0);
 }
 
-function runBot(room: RoomState, key: string): void {
+function runBot(room: RoomState, key: string, playerId: string): void {
   if (room.botTimer?.key === key) delete room.botTimer;
   const game = room.game;
-  if (rooms.get(room.code) !== room || !game || game.phase === "finished" || turnKey(game) !== key) return;
-  const playerId = game.players[game.currentPlayer]!.id;
-  if (!robotSeat(room, playerId)) return;
+  if (rooms.get(room.code) !== room || !game || game.phase === "finished") return;
+  if (`${turnKey(game)}:${robotActor(room, game)}:${game.version}` !== key) return;
+  room.botActing = `${turnKey(game)}:${playerId}`;
   try {
     const command = botCommand(redactGameForViewer(game, playerId), playerId);
-    room.game = command ? applyCommand(game, playerId, command) : timeoutTurn(game);
+    if (command) room.game = applyCommand(game, playerId, command);
+    else if (game.phase === "play") room.game = timeoutTurn(game);
+    else return;
   } catch (error) {
     console.error("人机行动失败，按超时处理", error);
-    room.game = timeoutTurn(game);
+    room.game = game.phase === "play" ? timeoutTurn(game) : game;
   }
   afterGameChange(room);
   emitRoomUpdate(room);
@@ -499,11 +532,17 @@ function runBot(room: RoomState, key: string): void {
 
 function expireTurn(room: RoomState): void {
   if (rooms.get(room.code) !== room || !room.game || room.game.phase === "finished") return;
-  const playerId = room.game.players[room.game.currentPlayer]!.id;
-  const count = (room.timeouts.get(playerId) ?? 0) + 1;
-  room.timeouts.set(playerId, count);
-  if (count >= AUTO_AFTER_TIMEOUTS) setAuto(room, playerId, true);
-  room.game = timeoutTurn(room.game);
+  const game = room.game;
+  const late = game.phase === "spirit"
+    ? game.players.filter((player) => !player.spiritPick).map((player) => player.id)
+    : [game.players[game.currentPlayer]!.id];
+  for (const playerId of late) {
+    const count = (room.timeouts.get(playerId) ?? 0) + 1;
+    room.timeouts.set(playerId, count);
+    if (count >= AUTO_AFTER_TIMEOUTS) setAuto(room, playerId, true);
+  }
+  delete room.turn;
+  room.game = timeoutTurn(game);
   afterGameChange(room);
   emitRoomUpdate(room);
 }
@@ -1201,6 +1240,16 @@ export const testHooks = {
     const room = rooms.get(code);
     if (!room) throw new Error("no room");
     room.game = newGame(room, seed);
+    updateTurnTimer(room);
+    emitRoomUpdate(room);
+  },
+  /** 换成指定的对局状态（预览局面工厂造的），方便测试固定局面。 */
+  setGame(code: string, game: GameState): void {
+    const room = rooms.get(code);
+    if (!room) throw new Error("no room");
+    clearGameTimers(room);
+    room.game = game;
+    room.status = "playing";
     updateTurnTimer(room);
     emitRoomUpdate(room);
   },
