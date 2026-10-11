@@ -53,9 +53,9 @@ const END: GameCommand = { type: "endTurn" };
 
 export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
-    kind: "info", id: "goal", lesson: "目标", anchor: "my-board",
-    say: "这是你的版图，每个六边形格子放一摞彩色标记。",
-    note: "用标记摆出树、山、田、房屋和河，再给动物卡上的动物安家。终局总分最高的人赢。",
+    kind: "info", id: "goal", lesson: "目标", anchor: "cell:2,2",
+    say: "这是你版图上的一格，每格放一摞彩色标记。",
+    note: "用标记在版图上摆出树、山、田、房屋和河，再给动物卡上的动物安家。终局总分最高的人赢。",
   },
   {
     kind: "do", id: "take1", lesson: "拿标记", anchor: "space-0", expect: take(0),
