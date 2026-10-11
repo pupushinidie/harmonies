@@ -38,6 +38,8 @@ export function HexBoard({ board, side, k, overlays, ghost, onCell, onHover, fre
     return a.y - b.y || a.x - b.x;
   });
   const effects = useEffects(version, fresh, freshCubes);
+  // 正在放方块 / 动物（有可以放的格子亮着）
+  const armed = overlays ? [...overlays.values()].some((overlay) => overlay === "valid" || overlay === "target") : false;
   return (
     <div
       className="hm-board"
@@ -120,6 +122,8 @@ export function HexBoard({ board, side, k, overlays, ghost, onCell, onHover, fre
               data-tutorial={tutorial ? `cell:${cell}` : undefined}
               aria-label={`格子 ${cell}`}
               style={{ left: o.x * k, top: o.y * k, width: HEX.w * k, height: HEX.h * k, clipPath: HEX_CLIP }}
+              // 能放的格子按下是普通轻点（结果音马上就来）；正在放方块 / 动物时点了不能放的格子响「不行」；没在放东西时不出声
+              data-sfx={live ? undefined : armed ? "deny" : "none"}
               onClick={() => onCell(cell)}
               onPointerEnter={onHover ? () => onHover(cell) : undefined}
             />

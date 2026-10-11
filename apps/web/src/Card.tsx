@@ -35,6 +35,8 @@ export interface CardProps {
   /** 已经放了几个方块（牌列里的卡不传）。 */
   readonly placed?: number;
   readonly onClick?: () => void;
+  /** 按下时的音效（gm-sound 的 data-sfx），默认是普通的轻点。 */
+  readonly sfx?: string;
   /** 能点（高亮）。 */
   readonly live?: boolean;
   readonly selected?: boolean;
@@ -61,7 +63,7 @@ export function describeCard(id: string): string {
 }
 
 /** 动物卡 / 自然之灵卡：立绘 + 代码画的图案和分数表。 */
-export function CardView({ id, size, placed, onClick, live, selected, dim, ready, title, tutorial, badge }: CardProps) {
+export function CardView({ id, size, placed, onClick, sfx, live, selected, dim, ready, title, tutorial, badge }: CardProps) {
   const spirit = isSpiritId(id);
   const big = size === "big";
   const s = big ? 2 : 1;
@@ -95,7 +97,7 @@ export function CardView({ id, size, placed, onClick, live, selected, dim, ready
   const tip = title ?? describeCard(id);
   if (onClick) {
     return (
-      <button type="button" className={classes} style={style} onClick={onClick} title={tip} data-tutorial={tutorial} data-card={id} aria-pressed={selected}>
+      <button type="button" className={classes} style={style} onClick={onClick} title={tip} data-tutorial={tutorial} data-card={id} data-sfx={sfx} aria-pressed={selected}>
         {content}
       </button>
     );

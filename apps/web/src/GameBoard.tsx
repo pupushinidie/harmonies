@@ -30,6 +30,8 @@ import { Coach, TipToast } from "./tutorial/Coach.js";
 import { useFirstTimeTips } from "./tutorial/tips.js";
 import { detectTips, GAME_ID, hintFor, TIPS, type Hint } from "./tutorialGame.js";
 import { GameRoomMenu, SpectateBar } from "./RoomExtras.js";
+import { useGameSfx } from "./game-sfx.js";
+import { useSfxCountdown } from "./gm-sound.js";
 import { socket } from "./socket.js";
 import type { Theme } from "./theme.js";
 
@@ -140,6 +142,8 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
   const myTurn = !spectating && !finished && !spiritPhase && game.currentPlayer === meIndex;
   const canAct = myTurn && !autoPlaying;
   const secondsLeft = useCountdown(room);
+  useGameSfx(game, selfId);
+  useSfxCountdown(myTurn && !autoPlaying, secondsLeft);
   const opponents = game.players.filter((player) => player.id !== myId);
   const [mainRef, layout] = useLayout(side, opponents.length);
   const memberOf = (playerId: string) => room.members.find((candidate) => candidate.playerId === playerId);
@@ -449,7 +453,7 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
               ready={ready}
               selected={cardSel === card.id}
               live={ready}
-              {...(canAct ? { onClick: () => clickHeld(card.id) } : {})}
+              {...(canAct ? { onClick: () => clickHeld(card.id), sfx: ready ? "select" : "deny" } : {})}
               tutorial={`held:${card.id}`}
               badge={!isSpiritId(card.id) && card.placed > 0 ? <b className="hm-card-points">{animalCard(card.id).scores[card.placed - 1]}</b> : null}
             />
@@ -470,6 +474,7 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
           type="button"
           className={index === handSel && !cubeMode ? "hm-hand-token selected" : "hm-hand-token"}
           disabled={!canAct}
+          data-sfx="select"
           onClick={() => { setCardSel(null); setHandSel(index); }}
           title={COLOR_NAMES[color]}
           data-token={color}

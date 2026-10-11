@@ -113,6 +113,12 @@ BASE_PATH=/harmonies/ npm run build
 
 只有像素风一种画面，配色分夜间（深色，默认）和白天（白底），顶栏随时切换，记在浏览器的 `gm-pixel-theme` 里（全站共用）。夜间配色写在 CSS 里；白天版由 `apps/web/day-theme.ts`（Vite 插件）按 `apps/web/day-palette.ts` 的调色表换色生成，机械换色不合适的地方在 `src/theme-day.css` 手写。
 
+## 声音
+
+还没有背景音乐（`App.tsx` 里用 `NO_BGM`：房间和教程里照样有 ♪ 面板，能调音效和语音）。共用声音库是 `apps/web/src/gm-sound.tsx`（各仓库同一份，不要改）。
+
+动作音效在 `apps/web/src/game-sfx.ts`（`useGameSfx`，对比前后两次对局快照的 version 和这一步的 events）：从中央版图拿方块 = 几块木头碰在一起的「嗒嗒」，放方块 = 招牌「木块落下」（摞得越高越清脆）、地貌分涨 3 分以上再响得分，领动物卡 = 一张卡拍到面前，放动物 = 招牌「动物落脚」（木头「咚」+ 一声小鸟叫）、分数涨了响得分、卡放满响亮晶晶的琶音，撤销 = 擦过的一声，结束回合 = 中央版图补满 + 牌列补卡的声音，触发终局 = 揭晓声，自然之灵 = 选卡 + 一起亮出；轮到你、交出回合、最后 5 秒倒计时、超时（服务器替你把整回合做完时每种只响一下）、终局赢/输都有提示音。别人的动作音量减半，进房间 / 重连时不补响。选手里的方块、选面前的卡是「选中」声，正在放东西时点了不能放的格子是「不行」声。开发模式下每响一个都记进 `window.__sfxLog`，自测脚本 `~/projects/qa-reports/tools/harmonies-sfx.mjs`（打一局）和 `sfx-tiles-tut.mjs`（走一遍教程）读它。
+
 ## 部署
 
 服务器上 `~/harmonies`，pm2 进程 `harmonies`（端口 3023），网页在 `/var/www/harmonies`，Caddy `handle_path /harmonies/*`（在付费网关 `@games` 里）。pm2 按仓库根目录的 `ecosystem.config.cjs` 直接启动一个 `node --import tsx` 进程。端口和密钥（PORT、ADMIN_TOKEN、TURN_*、WEB_ORIGINS）存在 pm2 里，不进仓库。
