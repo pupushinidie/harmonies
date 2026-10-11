@@ -105,6 +105,10 @@ BASE_PATH=/harmonies/ npm run build
 
 强度（`npx tsx packages/game/sim/sim-harmonies.ts`，2026-10-11）：对随机 2 人胜 100%（平均 75.8 : 20.3 分）；对贪心基线 2 人 A 面 91.5%（200 局，81.8 : 63.0）、B 面 95.5%、3 人 91.0%（公平 33%）、4 人 83.0%（公平 25%）、2 人 + 自然之灵 92.0%；对超时默认打法 100%。自对弈 2/3/4 人各 300 局全部合法打完（最多 243 步），平均每人 84–91 分。决策耗时平均 14.9 ms，p99 137 ms，最坏 232 ms（本机）。
 
+## 新手教程
+
+照站内统一做法（`~/projects/pipeline/handbook/tutorial-notes.md`）：剧本在 `packages/game/src/tutorial.ts`（32 步，托盘/牌列/布袋前段摆好，对手按剧本走），共用教练层 `apps/web/src/tutorial/`（从欲罢不能复制），`TutorialMode.tsx`、`tutorialGame.ts`（「提示」和小贴士）。首页、等候房间有入口，地址带 `?tutorial` 直接打开；学完接着和咕噜一号把这局打完，可以点「提示」（键盘 H）。走查：`node ~/projects/qa-reports/tools/tut-harmonies.mjs <输出目录> flow|skip|room [尺寸] [主题]`。
+
 ## 画面：白天版和夜间版
 
 只有像素风一种画面，配色分夜间（深色，默认）和白天（白底），顶栏随时切换，记在浏览器的 `gm-pixel-theme` 里（全站共用）。夜间配色写在 CSS 里；白天版由 `apps/web/day-theme.ts`（Vite 插件）按 `apps/web/day-palette.ts` 的调色表换色生成，机械换色不合适的地方在 `src/theme-day.css` 手写。
