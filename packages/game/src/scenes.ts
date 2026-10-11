@@ -174,14 +174,14 @@ const MID_B: Record<string, string> = {
 };
 
 /** 随机下完一整局（终局铺满的版图用）：每个人从合法行动里按种子随机挑。 */
-export function playout(playerCount: number, seed: number, side: BoardSide = "A", spirits = false): GameState {
+export function playout(playerCount: number, seed: number, side: BoardSide = "A", spirits = false, stopAtRound = Infinity): GameState {
   let state = createGame(
     Array.from({ length: playerCount }, (_, i) => ({ id: `p${i + 1}`, name: DEFAULT_NAMES[i]! })),
     seed,
     { side, spirits },
   );
   const rng = createRng(seed ^ 0x5bd1e995);
-  for (let guard = 0; guard < 4000 && state.phase !== "finished"; guard += 1) {
+  for (let guard = 0; guard < 4000 && state.phase !== "finished" && !(state.round >= stopAtRound && state.players[state.currentPlayer]?.id === "p1" && state.turnState.took === null); guard += 1) {
     const actor = state.phase === "spirit" ? state.players.find((p) => !p.spiritPick)! : state.players[state.currentPlayer]!;
     let actions = legalActions(state, actor.id);
     // 有方块能放就放、有卡能领先领，让版图像一局真的对局
@@ -211,6 +211,8 @@ export const SCENE_NAMES = [
   "midB",
   "finished",
   "finishedTie",
+  "mid4",
+  "mid3B",
   "finished4",
   "finishedB",
   "finishedSpirits",
@@ -222,7 +224,7 @@ export type SceneName = (typeof SCENE_NAMES)[number];
  * start/start3/start4/startB 开局；spiritPick 自然之灵选卡；spiritWaiting 自己选好了在等别人；
  * took 刚拿了 3 个标记；placing 放了一个还剩两个；cubeReady 图案已经摆出能放方块；
  * fullCards 面前 4 张没完成的卡（不能再领）；opponentTurn 别人的回合；lastRound 已经触发终局；
- * midB B 面下到一半；finished 终局；finishedTie 终局并列；finished4 4 人铺满的终局；finishedB B 面终局；
+ * midB B 面下到一半；mid4 4 人局第 5 轮轮到 p1；mid3B 3 人 B 面 + 自然之灵第 4 轮；finished 终局；finishedTie 终局并列；finished4 4 人铺满的终局；finishedB B 面终局；
  * finishedSpirits 带自然之灵的终局。
  */
 export function scene(name: SceneName): GameState {
@@ -332,6 +334,10 @@ export function scene(name: SceneName): GameState {
         finished: "board",
         seed: 13,
       });
+    case "mid4":
+      return playout(4, 2024, "A", false, 5);
+    case "mid3B":
+      return playout(3, 99, "B", true, 4);
     case "finished4":
       return playout(4, 2024);
     case "finishedB":

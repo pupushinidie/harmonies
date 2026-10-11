@@ -56,7 +56,7 @@ export {
 export { ANIMAL_CARDS, animalCard, cardPattern, cardPoints, cubeCount, isSpiritId, SHAPES, SPIRIT_CARDS, spiritCard } from "./cards.js";
 export { botAdvice, botCommand, missingForCard, turnsLeft } from "./bot.js";
 export type { BotAdvice } from "./bot.js";
-export { buildState, scene, SCENE_NAMES } from "./scenes.js";
+export { buildState, EXAMPLE_1, playout, scene, SCENE_NAMES } from "./scenes.js";
 export type { SceneName, StateSpec, PlayerSpec } from "./scenes.js";
 export { createRng, scriptedRng } from "./rng.js";
 export type { Rng } from "./rng.js";

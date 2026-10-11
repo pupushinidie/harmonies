@@ -12,52 +12,50 @@ function GameRules({ className = "quiet-button" }: { className?: string }) {
 
   return (
     <>
-      <button className={`${className} kd-rules-button`} type="button" aria-expanded={open} onClick={() => setOpen(true)}>规则</button>
+      <button className={`${className} hm-rules-button`} type="button" aria-expanded={open} onClick={() => setOpen(true)}>规则</button>
       {open && (
         <div className="gm-modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
-          <section className="gm-panel kd-rules" role="dialog" aria-modal="true" aria-labelledby="kd-rules-title" onClick={(event) => event.stopPropagation()}>
-            <h2 id="kd-rules-title">多米诺王国怎么玩</h2>
+          <section className="gm-panel hm-rules" role="dialog" aria-modal="true" aria-labelledby="hm-rules-title" onClick={(event) => event.stopPropagation()}>
+            <h2 id="hm-rules-title">自然和弦怎么玩</h2>
             <div className="game-rules-block">
               <h3>目标</h3>
-              <p>
-                每人从一座城堡起步，把挑来的骨牌（一张占两格）拼进自己的王国，最后拼成 <b>5×5</b> 的方块（2 人「强力对决」是 7×7）。
-                每一片连在一起的同种地形，得分 = <b>格数 × 这片里的皇冠数</b>，没有皇冠的地方不得分。总分最高的人获胜。
-              </p>
+              <p>每人一块六边形格子的版图。用彩色标记摆出树、山、田、房屋和水，再给动物卡上的动物安家。终局时<b>地貌分 + 动物卡分</b>最高的人赢。</p>
             </div>
             <div className="game-rules-block">
-              <h3>一轮怎么走</h3>
+              <h3>轮到你时</h3>
               <ol>
-                <li>场上有两排骨牌：<b>本轮</b>这一排上站着国王，<b>下一轮</b>这一排等着被挑。每排按编号从小到大摆。</li>
-                <li>本轮这一排里，<b>编号最小</b>那张上的国王先行动：先把脚下的骨牌<b>放进自己的王国</b>，再到下一轮那一排<b>挑一张</b>还没人挑的骨牌。</li>
-                <li>编号越大的骨牌通常越值钱（皇冠多），但挑了它，下一轮你就排得越靠后。</li>
-                <li>开局先翻一排让大家挑，不放。2 人局每人有 2 个国王，顺序是 A 挑 1 张 → B 挑 2 张 → A 拿剩下那张；3–4 人局顺序随机。</li>
-                <li>3 人局每排没人挑的那一张直接弃掉。牌堆用完后的最后一轮只放不挑。</li>
+                <li><b>必须</b>从中央托盘挑一格，3 个标记全拿走，一个个放到自己版图上。</li>
+                <li><b>可以</b>从牌列领 1 张动物卡（面前没完成的卡最多 4 张）。</li>
+                <li><b>可以</b>放方块：版图上摆出了卡上的图案（转着摆也行），就在橙框标出的目标格上放一个方块，次数不限。</li>
+                <li>这几件事顺序随意，结束回合之前每一步都能撤销。三个标记都放完才能结束回合。</li>
               </ol>
             </div>
             <div className="game-rules-block">
-              <h3>怎么放</h3>
+              <h3>怎么叠</h3>
               <ul>
-                <li>两格都要放在空格上，可以随意转方向。</li>
-                <li>至少有一格要上下或左右挨着<b>城堡</b>（城堡和什么地形都能接）或者<b>同一种地形</b>，斜着挨不算。另一格挨着什么都行。</li>
-                <li>整个王国（连城堡）不能超出 5×5。城堡不一定在正中间。</li>
-                <li>只要有地方能放就必须放；哪里都放不下，这张就弃掉，王国里会留空。</li>
-                <li><b>提前放</b>：还没轮到你时就可以先把这张骨牌放好（可以改），轮到你时自动生效，直接去挑下一张。别人看不到你放在哪。</li>
+                <li>任何标记都能放空格。山叠在山上（最多 3 层）；树干叠在 1 个树干上；树冠放在空格或树干上（这就是 1–3 高的树）。</li>
+                <li>屋顶要压在<b>单层</b>的山、树干或屋顶上才是房屋；单放的屋顶不算房屋。</li>
+                <li>水、田、树冠、房屋上面不能再放东西；放了方块的格子也不能再叠。</li>
               </ul>
             </div>
             <div className="game-rules-block">
-              <h3>计分和平局</h3>
+              <h3>怎么算分</h3>
               <ul>
-                <li>每片区域单独算，城堡不属于任何区域，也不把两边连起来。</li>
-                <li>开房可选：<b>中央王国</b>（城堡在王国正中心 +10；没拼满也算，只要所有格子都在城堡上下左右 2 格以内）、<b>和谐</b>（拼满而且整局没弃过骨牌 +5）。</li>
-                <li>同分时比<b>最大的一片区域</b>有几格（有没有皇冠都算），再比<b>皇冠总数</b>，还一样就并列获胜。</li>
+                <li><b>树</b>：高 1 / 2 / 3 得 1 / 3 / 7。<b>山</b>：一样，但要挨着另一座山，否则 0 分。</li>
+                <li><b>田</b>：每片相连的田（至少 2 个）得 5，再大也只 5 分，所以分成好几片。</li>
+                <li><b>房屋</b>：四周 6 格最上面至少有 3 种颜色得 5。</li>
+                <li><b>水</b>：A 面数最长的一条河（分叉不算长度），2 / 3 / 4 / 5 / 6 格得 2 / 5 / 8 / 11 / 15，之后每格 +4；B 面数被水隔开的岛（空格也算陆地），每个岛 5 分。</li>
+                <li><b>动物卡</b>：按放了几个方块查卡下面的分数；没放完也照算。方块放下就不拿走，图案后来被盖掉也照样算。</li>
+                <li><b>自然之灵</b>（开房选项）：开局从 2 张里选 1 张，放上它的方块后，终局按卡上的说法另外加分。</li>
               </ul>
+            </div>
+            <div className="game-rules-block">
+              <h3>什么时候结束</h3>
+              <p>有人结束回合时版图只剩 2 个空格以内，或者托盘要补时布袋空了，就打完这一轮（每人回合数一样）后结束。同分时放到版图上的动物方块多的赢，再一样就并列。</p>
             </div>
             <div className="game-rules-block">
               <h3>时间和托管</h3>
-              <p>
-                挑牌 45 秒、放骨牌 90 秒。超时自动替你走：挑编号最小的空位，放在放下后分数最高的位置。
-                连续超时 2 次转托管（人机替你下），掉线时也由人机代下，回来就交还给你。
-              </p>
+              <p>每回合 90 秒，超时自动替你走完：拿第一格、标记放在地貌分最高的地方、能放的方块放上。连续超时 2 次转托管（人机替你打），掉线时也由人机代打，回来就交还给你。</p>
             </div>
             <div className="gm-panel-actions">
               <button className="primary-button" type="button" onClick={() => setOpen(false)}>知道了</button>

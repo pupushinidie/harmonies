@@ -9,13 +9,13 @@ export function roomRole(room: LobbyRoomSnapshot) {
 }
 
 /** 这款游戏有没有藏起来的信息（手牌等）；没有的话不显示「观战看手牌」。 */
-const HIDDEN_INFO = false;
+const HIDDEN_INFO = true;
 /** 藏起来的是什么（显示在开关上）。 */
-const SECRET = "手牌";
+const SECRET = "自然之灵";
 
 const ALL_OPTIONS: { key: keyof RoomAccess; label: string; hint: string }[] = [
   { key: "allowSpectators", label: "允许观战", hint: "有房间码、或者从首页列表都能进来看" },
-  { key: "spectatorsSeeAll", label: `观战看${SECRET}`, hint: `打开后观战的人能看到${SECRET}；关掉只看公开信息` },
+  { key: "spectatorsSeeAll", label: `观战看${SECRET}`, hint: `开了自然之灵变体时，观战的人能看到每人发到的两张；关掉只看公开信息` },
   { key: "open", label: "公开房间", hint: "不认识的人也能从首页列表直接加入空座位" },
 ];
 const OPTIONS = ALL_OPTIONS.filter((option) => HIDDEN_INFO || option.key !== "spectatorsSeeAll");
