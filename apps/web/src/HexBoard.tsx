@@ -117,6 +117,7 @@ export function HexBoard({ board, side, k, overlays, ghost, onCell, onHover, fre
               type="button"
               className={live ? "hm-hit live" : "hm-hit"}
               data-cell={cell}
+              data-tutorial={tutorial ? `cell:${cell}` : undefined}
               aria-label={`格子 ${cell}`}
               style={{ left: o.x * k, top: o.y * k, width: HEX.w * k, height: HEX.h * k, clipPath: HEX_CLIP }}
               onClick={() => onCell(cell)}

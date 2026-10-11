@@ -26,6 +26,9 @@ import { CardView } from "./Card.js";
 import GameRules from "./GameRules.js";
 import { HexBoard, type Overlay } from "./HexBoard.js";
 import { STRIP_W, useLayout } from "./layout.js";
+import { Coach, TipToast } from "./tutorial/Coach.js";
+import { useFirstTimeTips } from "./tutorial/tips.js";
+import { detectTips, GAME_ID, hintFor, TIPS, type Hint } from "./tutorialGame.js";
 import { GameRoomMenu, SpectateBar } from "./RoomExtras.js";
 import { socket } from "./socket.js";
 import type { Theme } from "./theme.js";
@@ -51,8 +54,14 @@ interface GameBoardProps {
   readonly onWatch: (playerId: string) => void;
   /** 观战的人离开。 */
   readonly onLeave: () => void;
-  /** 教程、练习局用：按钮行里额外放的东西（提示按钮等）。 */
+  /** 教程、练习局用：按钮行里额外放的东西。 */
   readonly extraControls?: ReactNode;
+  /** 自己在 room.members 里的 id（默认 socket.id；教程里传固定值）。 */
+  readonly selfMemberId?: string;
+  /** online：真实对局；tutorial：剧本进行中（不出提示和小贴士）；practice：练习局（随时能看提示）。 */
+  readonly mode?: "online" | "tutorial" | "practice";
+  /** 结算框里替代「再来一局」的按钮（练习局放「结束教程」「再练一局」）。 */
+  readonly finalActions?: ReactNode;
 }
 
 function useCountdown(room: LobbyRoomSnapshot): number | null {
@@ -114,9 +123,9 @@ function cardHex(id: string): string {
   return isSpiritId(id) ? CARD_HEX.spirit! : CARD_HEX[animalCard(id).color]!;
 }
 
-function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, theme, chat, onCommand, onRematch, onAuto, onDissolve, watchId, onWatch, onLeave, extraControls }: GameBoardProps) {
+function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, theme, chat, onCommand, onRematch, onAuto, onDissolve, watchId, onWatch, onLeave, extraControls, selfMemberId, mode = "online", finalActions }: GameBoardProps) {
   const game = room.game!;
-  const member = room.members.find((candidate) => candidate.id === socket.id);
+  const member = room.members.find((candidate) => candidate.id === (selfMemberId ?? socket.id));
   const spectating = !member;
   const myId = member?.playerId ?? watchId;
   const selfId = spectating ? "" : myId;
@@ -201,6 +210,10 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
   useEffect(() => {
     if (cardSel && !(targetsByCard.get(cardSel)?.length)) setCardSel(null);
   }, [targetsByCard, cardSel]);
+  // 标记都放完、只有一张卡能放方块时，自动选中它（点卡取消后这一步不再自动选）
+  useEffect(() => {
+    if (canAct && t.hand.length === 0 && readyCards.length === 1 && cardSel === null) setCardSel(readyCards[0]!);
+  }, [game.version, canAct]);
   const cubeMode = canAct && cardSel !== null;
   const handColor = t.hand[handSel] ?? t.hand[0];
   const tokenMode = canAct && !cubeMode && t.hand.length > 0;
@@ -243,6 +256,36 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
     if (!canAct) return;
     setCardSel((current) => (current === cardId ? null : (targetsByCard.get(cardId)?.length ?? 0) > 0 ? cardId : null));
   };
+
+  // ---------- 「提示」：练习局随时能用；真实对局里只有自己和人机时能用 ----------
+  const botsOnly = room.members.length > 1 && room.members.every((candidate) => candidate.playerId === myId || candidate.bot === true);
+  const canHint = !spectating && !autoPlaying && myTurn && (mode === "practice" || (mode === "online" && botsOnly));
+  const [hint, setHint] = useState<{ version: number; hint: Hint } | null>(null);
+  const shownHint = hint && hint.version === game.version && canHint ? hint.hint : null;
+  const toggleHint = () => {
+    if (hint && hint.version === game.version) {
+      setHint(null);
+      return;
+    }
+    const next = hintFor(game, myId);
+    // 先把人机会用的标记 / 卡选好，点高亮的格子就是那一步
+    if (next.command?.type === "placeToken") {
+      setCardSel(null);
+      setHandSel(next.command.index);
+    } else if (next.command?.type === "placeCube") setCardSel(next.command.cardId);
+    setHint({ version: game.version, hint: next });
+  };
+  useEffect(() => {
+    if (!canHint) return;
+    const handle = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.metaKey || event.ctrlKey || event.altKey || target?.closest("input, textarea, [contenteditable]")) return;
+      if (event.key.toLowerCase() === "h") toggleHint();
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [canHint, game.version, hint]);
+  const tips = useFirstTimeTips(GAME_ID, game.version, () => detectTips(game, myId), TIPS, mode === "online" && !spectating);
 
   // ---------- 结束回合（还有方块能放时先确认） ----------
   const [confirmEnd, setConfirmEnd] = useState(0);
@@ -349,7 +392,7 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
         })}
       </div>
       <div className="hm-supply-info">
-        <span className="hm-bag" title={game.pouchCounts ? Object.entries(game.pouchCounts).map(([c, n]) => `${COLOR_NAMES[c as Color]} ${n}`).join("、") : ""}>
+        <span className="hm-bag" data-tutorial="bag" title={game.pouchCounts ? Object.entries(game.pouchCounts).map(([c, n]) => `${COLOR_NAMES[c as Color]} ${n}`).join("、") : ""}>
           <img src={art.bag} alt="" style={{ width: 22, height: 25 }} />
           <small>布袋</small><b>{pouchLeft}</b>
         </span>
@@ -371,7 +414,7 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
       <h3>牌列 <small>{marketNote}</small></h3>
       <div className="hm-cards">
         {game.market.map((id) => (
-          <CardView key={id} id={id} size={layout.bigMarket ? "big" : "small"} live={takeable} dim={canAct && !takeable} {...(takeable ? { onClick: () => clickMarket(id) } : {})} />
+          <CardView key={id} id={id} size={layout.bigMarket ? "big" : "small"} live={takeable} dim={canAct && !takeable} tutorial={`card:${id}`} {...(takeable ? { onClick: () => clickMarket(id) } : {})} />
         ))}
         {game.market.length === 0 && <p className="hm-muted">牌堆已经用完</p>}
       </div>
@@ -407,7 +450,7 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
               selected={cardSel === card.id}
               live={ready}
               {...(canAct ? { onClick: () => clickHeld(card.id) } : {})}
-              {...(ready ? { tutorial: "ready-card" } : {})}
+              tutorial={`held:${card.id}`}
               badge={!isSpiritId(card.id) && card.placed > 0 ? <b className="hm-card-points">{animalCard(card.id).scores[card.placed - 1]}</b> : null}
             />
           );
@@ -446,6 +489,9 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
           <button className="quiet-button" type="button" disabled={t.undoCount === 0 || busy} onClick={undo} data-tutorial="undo">撤销</button>
           <button className="primary-button hm-end" type="button" disabled={!canEnd || busy} onClick={endTurn} data-tutorial="end-turn">结束回合</button>
         </>
+      )}
+      {canHint && (
+        <button className={shownHint ? "quiet-button hm-hint on" : "quiet-button hm-hint"} type="button" data-tutorial="hint" data-hint-anchor={shownHint?.anchor ?? ""} onClick={toggleHint} title="让人机告诉你它会怎么走（键盘 H）">提示</button>
       )}
       {extraControls}
       {autoPlaying && <button className="primary-button hm-auto-cancel" type="button" onClick={() => onAuto(false)}>取消托管</button>}
@@ -662,7 +708,21 @@ function GameBoard({ room, busy, error, notice, brand, connection, themeToggle, 
         </div>
       )}
       {oppDialog}
-      {finished && <FinalDialog game={game} room={room} myId={selfId} spectating={spectating} nameOf={nameOf} seatOf={seatOf} onRematch={onRematch} onLeave={onLeave} />}
+      {finished && <FinalDialog game={game} room={room} myId={selfId} spectating={spectating} nameOf={nameOf} seatOf={seatOf} onRematch={onRematch} onLeave={onLeave} actions={finalActions} />}
+      {shownHint && (
+        <Coach
+          view={{
+            key: `hint-${game.version}`,
+            say: shownHint.say,
+            ...(shownHint.note ? { note: shownHint.note } : {}),
+            anchor: shownHint.anchor,
+            focus: false,
+            face: "think",
+            actions: <button className="quiet-button" type="button" onClick={() => setHint(null)}>知道了</button>,
+          }}
+        />
+      )}
+      {tips.tip && <TipToast tip={tips.tip} onClose={tips.dismiss} onNever={tips.never} />}
     </div>
   );
 }
@@ -739,7 +799,7 @@ function PlayerHead({ player, you, member, game, big = false }: { player: Player
       {!member?.bot && (member?.auto || offline) && <small className="hm-auto">托管</small>}
       {offline && !member?.bot && <small className="hm-offline">离线</small>}
       {game.phase === "spirit" && <small className="hm-muted-tag">{player.spiritPick ? "选好了" : "在选"}</small>}
-      <b className="hm-score" title="现在的总分">{player.score}</b>
+      <b className="hm-score" title="现在的总分" {...(big ? { "data-tutorial": "my-score" } : {})}>{player.score}</b>
     </div>
   );
 }
@@ -784,7 +844,7 @@ const PARTS: { key: "trees" | "mountains" | "fields" | "houses" | "water"; label
   { key: "water", label: "水", icon: "water" },
 ];
 
-function FinalDialog({ game, room, myId, spectating, nameOf, seatOf, onRematch, onLeave }: {
+function FinalDialog({ game, room, myId, spectating, nameOf, seatOf, onRematch, onLeave, actions }: {
   game: GameState;
   room: LobbyRoomSnapshot;
   myId: string;
@@ -793,6 +853,7 @@ function FinalDialog({ game, room, myId, spectating, nameOf, seatOf, onRematch, 
   seatOf: (id: string) => string;
   onRematch: (accept: boolean) => void;
   onLeave: () => void;
+  actions?: ReactNode | undefined;
 }) {
   const result = game.finalResult!;
   const accepted = room.rematch?.acceptedIds.includes(socket.id ?? "") ?? false;
@@ -834,7 +895,14 @@ function FinalDialog({ game, room, myId, spectating, nameOf, seatOf, onRematch, 
             );
           })}
         </ol>
-        {spectating ? (
+        {actions ? (
+          <div className="hm-rematch">
+            <div className="gm-panel-actions">
+              <button className="quiet-button" type="button" onClick={() => setHidden(true)}>看版图</button>
+              {actions}
+            </div>
+          </div>
+        ) : spectating ? (
           <div className="hm-rematch">
             <span>{room.rematch ? `等玩家决定要不要再来一局（${room.rematch.acceptedIds.length}/${room.members.length} 人同意）` : "对局结束"}</span>
             <div className="gm-panel-actions">

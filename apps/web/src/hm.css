@@ -494,3 +494,7 @@ button.hm-card { cursor: pointer; }
   .hm-showcase-card + .hm-showcase-card { display: none; }
   .hm-showcase-card { width: 64px; height: 64px; }
 }
+/* 弹窗挂在顶栏里时不要继承顶栏的不换行 */
+.app-shell .gm-panel.hm-rules, .app-shell .gm-panel.hm-opp-detail, .app-shell .gm-modal-backdrop { white-space: normal; }
+.hm-head > small { white-space: nowrap; }
+.hm-opps.mini .hm-head .hm-auto { display: none; }
