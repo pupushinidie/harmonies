@@ -292,6 +292,7 @@ function App() {
   if (room) {
     return (
       <main className="app-shell hm-room">
+        <HmBackdrop src={art.bg(theme === "day")} />
         <header className="topbar">
           <Brand />
           <div className="topbar-right">
@@ -329,6 +330,7 @@ function App() {
 
   return (
     <main className="app-shell hm-home">
+      <HmBackdrop src={art.bg(theme === "day")} />
       <header className="topbar">
         <Brand />
         <div className="topbar-right">
@@ -475,6 +477,16 @@ function Hero() {
         <img className="hm-showcase-card" src={art.card("A05")} alt="" />
         <img className="hm-showcase-card" src={art.card("A13")} alt="" />
       </div>
+    </div>
+  );
+}
+
+/** 全屏背景：把对局场景铺满窗口（16:9 居中裁切），上面盖一层罩色让面板更突出。首页和等候房间放在 <main> 的第一个子元素。 */
+function HmBackdrop({ src }: { src: string }) {
+  return (
+    <div className="hm-backdrop" aria-hidden="true">
+      <div className="hm-backdrop-art" style={{ backgroundImage: `url(${src})` }} />
+      <div className="hm-backdrop-veil" />
     </div>
   );
 }

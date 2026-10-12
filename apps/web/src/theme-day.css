@@ -5,3 +5,6 @@
 :root[data-theme="day"] { color-scheme: light; }
 :root[data-theme="day"] .app-shell * { scrollbar-color: #c4b090 var(--bg); }
 
+/* 全屏背景：白天版罩色变浅 */
+:root[data-theme="day"] .hm-backdrop { background: #efe6da; }
+:root[data-theme="day"] .hm-backdrop-veil { background: #ffffff; opacity: 0.25; }
